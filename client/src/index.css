@@ -1,0 +1,38 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+/* Smooth Lenis wheel scrolling adds .lenis to html; keep native smooth only as fallback */
+@media (prefers-reduced-motion: no-preference) {
+    html:not(.lenis) {
+        scroll-behavior: smooth;
+    }
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    /* Must win over Bootstrap reboot (loaded before this file in main.jsx) */
+    background-color: #0b0e14 !important;
+    color: #ffffff !important;
+}
+
+#root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #0b0e14;
+    color: #ffffff;
+    flex: 1;
+}
+
+/* Admin inventory: grey placeholder text on white fields (matches reference mockups) */
+.inventory-form input::placeholder,
+.inventory-form textarea::placeholder {
+    color: #64748b;
+    opacity: 1;
+}
