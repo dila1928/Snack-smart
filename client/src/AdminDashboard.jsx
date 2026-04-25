@@ -33,6 +33,13 @@ function mapApiOrderRow(o) {
     };
 }
 
+function issueTypeLabel(type) {
+    if (type === "order") return "Order issue";
+    if (type === "payment") return "Payment question";
+    if (type === "feedback") return "Feedback";
+    return "General inquiry";
+}
+
 export default function AdminDashboard() {
     const [filter, setFilter] = useState("All");
     const [chart, setChart] = useState([]);
@@ -40,18 +47,26 @@ export default function AdminDashboard() {
     const [pendingCount, setPendingCount] = useState(0);
     const [loadErr, setLoadErr] = useState("");
     const [demoFallback, setDemoFallback] = useState(false);
+    const [contactMessages, setContactMessages] = useState([]);
+    const [contactLoadErr, setContactLoadErr] = useState("");
 
     useEffect(() => {
         let cancelled = false;
         (async () => {
             try {
-                const { data } = await api.get("/orders/dashboard");
+                const [dashboardRes, contactRes] = await Promise.all([
+                    api.get("/orders/dashboard"),
+                    api.get("/contact-messages", { params: { limit: 20 } }),
+                ]);
+                const data = dashboardRes.data;
                 if (cancelled) return;
                 setChart(Array.isArray(data.chart) ? data.chart : []);
                 setApiRows(Array.isArray(data.orders) ? data.orders.map(mapApiOrderRow) : []);
                 setPendingCount(Number(data.pendingCount) || 0);
                 setLoadErr("");
                 setDemoFallback(false);
+                setContactMessages(Array.isArray(contactRes.data) ? contactRes.data : []);
+                setContactLoadErr("");
             } catch (e) {
                 if (cancelled) return;
                 setChart([]);
@@ -62,6 +77,11 @@ export default function AdminDashboard() {
                         (e.response ? "Could not load dashboard data." : "Network error — is the API running?")
                 );
                 setDemoFallback(true);
+                setContactMessages([]);
+                setContactLoadErr(
+                    e.response?.data?.message ||
+                        (e.response ? "Could not load contact messages." : "Network error — is the API running?")
+                );
             }
         })();
         return () => {
@@ -260,6 +280,59 @@ export default function AdminDashboard() {
                                 Open Inventory
                             </Link>
                         </p>
+                    </section>
+                    <section style={{ ...card, marginTop: "24px" }}>
+                        <div style={ordersHeader}>
+                            <h2 style={{ ...cardTitle, margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
+                                <span aria-hidden>✉️</span> Contact Messages
+                            </h2>
+                            <span style={{ color: t.textMuted, fontSize: "14px" }}>
+                                {contactMessages.length} recent messages
+                            </span>
+                        </div>
+                        {contactLoadErr ? (
+                            <p style={{ margin: "10px 0 0", color: t.danger, fontSize: "14px" }}>{contactLoadErr}</p>
+                        ) : contactMessages.length === 0 ? (
+                            <p style={{ margin: "10px 0 0", color: t.textMuted, fontSize: "14px" }}>
+                                No contact messages yet.
+                            </p>
+                        ) : (
+                            <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
+                                {contactMessages.map((msg) => (
+                                    <article
+                                        key={msg.id}
+                                        style={{
+                                            border: `1px solid ${t.borderSubtle}`,
+                                            backgroundColor: "rgba(0,0,0,0.2)",
+                                            borderRadius: t.radiusSm,
+                                            padding: "12px",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                gap: "10px",
+                                                flexWrap: "wrap",
+                                                marginBottom: "6px",
+                                            }}
+                                        >
+                                            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                                                <strong style={{ color: t.text }}>{msg.name}</strong>
+                                                <span style={{ color: t.textMuted, fontSize: "13px" }}>({msg.email})</span>
+                                            </div>
+                                            <span style={{ color: t.textDim, fontSize: "12px" }}>{msg.createdAtLabel || "—"}</span>
+                                        </div>
+                                        <div style={{ marginBottom: "6px" }}>
+                                            <span style={statusPill}>{issueTypeLabel(msg.issueType)}</span>
+                                        </div>
+                                        <p style={{ margin: 0, color: t.textMuted, lineHeight: 1.55, fontSize: "14px" }}>
+                                            {msg.message}
+                                        </p>
+                                    </article>
+                                ))}
+                            </div>
+                        )}
                     </section>
                 </div>
             </div>

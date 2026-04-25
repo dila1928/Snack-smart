@@ -4,6 +4,7 @@ const Category = require("../models/category");
 const FoodItem = require("../models/foodItem");
 const Offer = require("../models/offer");
 const Order = require("../models/order");
+const ContactMessage = require("../models/contactMessage");
 
 const router = express.Router();
 
@@ -132,6 +133,19 @@ function serializeOffer(doc) {
         is_active: !!o.is_active,
         createdAt: o.createdAt,
         updatedAt: o.updatedAt,
+    };
+}
+
+function serializeContactMessage(doc) {
+    const o = doc.toObject ? doc.toObject() : doc;
+    return {
+        id: String(o._id),
+        name: o.name,
+        email: o.email,
+        issueType: o.issueType,
+        message: o.message,
+        createdAt: o.createdAt,
+        createdAtLabel: formatPlacedAt(o.createdAt),
     };
 }
 
@@ -1065,6 +1079,45 @@ router.post("/food-items/:id/reviews", async (req, res) => {
         res.json(serializeFood(populated));
     } catch (err) {
         res.status(400).json({ message: err.message || "Could not submit review" });
+    }
+});
+
+/** Contact messages */
+router.post("/contact-messages", async (req, res) => {
+    try {
+        const body = req.body || {};
+        const name = String(body.name || "").trim();
+        const email = String(body.email || "").trim().toLowerCase();
+        const issueType = String(body.issueType || "general").trim().toLowerCase();
+        const message = String(body.message || "").trim();
+
+        if (name.length < 2) {
+            return res.status(400).json({ message: "Name must be at least 2 characters." });
+        }
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({ message: "Please provide a valid email address." });
+        }
+        if (!["general", "order", "payment", "feedback"].includes(issueType)) {
+            return res.status(400).json({ message: "Invalid issue type." });
+        }
+        if (message.length < 10) {
+            return res.status(400).json({ message: "Message must be at least 10 characters." });
+        }
+
+        const doc = await ContactMessage.create({ name, email, issueType, message });
+        res.status(201).json(serializeContactMessage(doc));
+    } catch (err) {
+        res.status(400).json({ message: err.message || "Could not save your message." });
+    }
+});
+
+router.get("/contact-messages", async (req, res) => {
+    try {
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 25));
+        const list = await ContactMessage.find().sort({ createdAt: -1 }).limit(limit).lean();
+        res.json(list.map((row) => serializeContactMessage(row)));
+    } catch (err) {
+        res.status(500).json({ message: err.message || "Could not load contact messages." });
     }
 });
 
