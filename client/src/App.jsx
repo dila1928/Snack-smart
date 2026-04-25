@@ -17,6 +17,7 @@ import Cart from './Cart'
 import Checkout from './Checkout'
 import OrderConfirmed from './OrderConfirmed'
 import OrderReviews from './OrderReviews'
+import FAQ from './FAQ'
 import { clearLegacyAuthFromLocalStorage } from "./authSession"
 import RequireAdmin from "./RequireAdmin"
 import { CartProvider } from "./CartContext"
@@ -89,7 +90,7 @@ function App() {
           <Route path="/order-reviews" element={<OrderReviews />} />
           <Route path="/my-reviews" element={<OrderReviews />} />
           <Route path="/delivery" element={<Navigate to="/home" replace />} />
-          <Route path="/faq" element={<Navigate to="/home" replace />} />
+          <Route path="/faq" element={<FAQ />} />
           <Route path="/contact" element={<Navigate to="/home" replace />} />
           <Route path="/profile" element={<Profile />} />
         </Routes>

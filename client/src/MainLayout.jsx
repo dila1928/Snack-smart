@@ -205,7 +205,9 @@ export function MainLayout({ children }) {
                     ) : (
                         <>
                             {nav("/food", "Food")}
-                            <span style={ls.topLink}>FAQ</span>
+                            <Link to="/faq" style={path === "/faq" ? ls.topLinkActive : ls.topLink}>
+                                FAQ
+                            </Link>
                             <span style={ls.topLink}>Contact Us</span>
                             <Link
                                 to="/profile#orders"
