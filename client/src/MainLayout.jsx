@@ -208,7 +208,9 @@ export function MainLayout({ children }) {
                             <Link to="/faq" style={path === "/faq" ? ls.topLinkActive : ls.topLink}>
                                 FAQ
                             </Link>
-                            <span style={ls.topLink}>Contact Us</span>
+                            <Link to="/contact" style={path === "/contact" ? ls.topLinkActive : ls.topLink}>
+                                Contact Us
+                            </Link>
                             <Link
                                 to="/profile#orders"
                                 style={orderHistoryActive ? ls.topLinkActive : ls.topLink}
