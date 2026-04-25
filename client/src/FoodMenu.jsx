@@ -4,6 +4,7 @@ import { theme as t } from "./theme";
 import { api } from "./api";
 import { useCart } from "./CartContext";
 import { trackFoodItemClick } from "./foodClickTrack";
+import homeBg from "./assets/home-bg.png";
 
 function StarRow({ value }) {
     const v = Math.min(5, Math.max(0, Math.round(Number(value) || 0)));
@@ -121,6 +122,7 @@ export default function FoodMenu() {
     return (
         <MainLayout>
             <div style={styles.shell}>
+                <div style={styles.bgOverlay} aria-hidden />
                 <div style={styles.banner}>
                     <h1 style={styles.bannerTitle}>Food Menu</h1>
                 </div>
@@ -299,15 +301,30 @@ export default function FoodMenu() {
 
 const styles = {
     shell: {
+        position: "relative",
         width: "100%",
         minHeight: "60vh",
-        backgroundColor: t.bg,
+        backgroundImage: `url(${homeBg})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+    },
+    bgOverlay: {
+        position: "absolute",
+        inset: 0,
+        background:
+            "linear-gradient(180deg, rgba(7, 8, 12, 0.52) 0%, rgba(7, 8, 12, 0.62) 45%, rgba(7, 8, 12, 0.72) 100%)",
+        pointerEvents: "none",
+        zIndex: 0,
     },
     banner: {
-        background: `linear-gradient(135deg, #0f172a 0%, ${t.surface} 100%)`,
-        borderBottom: `1px solid ${t.border}`,
+        position: "relative",
+        zIndex: 1,
+        background: "rgba(15, 23, 42, 0.55)",
+        borderBottom: `1px solid rgba(249, 200, 81, 0.24)`,
         padding: "22px 16px",
         textAlign: "center",
+        backdropFilter: "blur(2px)",
     },
     bannerTitle: {
         margin: 0,
@@ -317,6 +334,8 @@ const styles = {
         letterSpacing: "-0.02em",
     },
     inner: {
+        position: "relative",
+        zIndex: 1,
         maxWidth: "1120px",
         margin: "0 auto",
         padding: "22px 16px 40px",
