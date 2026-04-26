@@ -4,9 +4,134 @@ const Category = require("../models/category");
 const FoodItem = require("../models/foodItem");
 const Offer = require("../models/offer");
 const Order = require("../models/order");
+
 const ContactMessage = require("../models/contactMessage");
+const Studentmodel = require("../models/students");
 
 const router = express.Router();
+
+function resolveProfileAccountEmail(req) {
+    const fromHeader = String(req.headers["x-user-email"] || "").trim();
+    if (fromHeader) return fromHeader;
+    const fromQuery = String(req.query?.accountEmail || req.query?.email || "").trim();
+    if (fromQuery) return fromQuery;
+    const fromBody = String(req.body?.accountEmail || req.body?.email || "").trim();
+    return fromBody;
+}
+
+function profileFromStudent(user, accountEmail) {
+    return {
+        fullName: String(user?.profileFullName || user?.name || "").trim(),
+        email: String(user?.profileEmail || user?.email || accountEmail || "").trim(),
+        phoneNumber: String(user?.profilePhoneNumber || "").trim(),
+        dietPreference: String(user?.profileDietPreference || "No Preference").trim() || "No Preference",
+        notificationPreference:
+            String(user?.profileNotificationPreference || "Email").trim() || "Email",
+        profileImage: String(user?.profileImage || "").trim(),
+    };
+}
+
+function isValidEmailFormat(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+router.get("/profile", async (req, res) => {
+    try {
+        const accountEmail = resolveProfileAccountEmail(req);
+        if (!accountEmail) {
+            return res.status(400).json({ message: "accountEmail is required" });
+        }
+        const user = await Studentmodel.findOne({ email: accountEmail }).lean();
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        return res.json({ ok: true, profile: profileFromStudent(user, accountEmail) });
+    } catch (err) {
+        return res.status(500).json({ message: err.message || "Could not fetch profile" });
+    }
+});
+
+router.patch("/profile", async (req, res) => {
+    try {
+        const accountEmail = resolveProfileAccountEmail(req);
+        if (!accountEmail) {
+            return res.status(400).json({ message: "accountEmail is required" });
+        }
+        if (!isValidEmailFormat(accountEmail)) {
+            return res.status(400).json({ message: "accountEmail must be a valid email address." });
+        }
+        const body = req.body || {};
+        const update = {};
+
+        if (Object.prototype.hasOwnProperty.call(body, "fullName")) {
+            const fullName = String(body.fullName || "").trim();
+            if (fullName && fullName.length < 2) {
+                return res.status(400).json({ message: "Full name must be at least 2 characters." });
+            }
+            if (fullName.length > 80) {
+                return res.status(400).json({ message: "Full name cannot exceed 80 characters." });
+            }
+            update.profileFullName = fullName;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "email")) {
+            const profileEmail = String(body.email || "").trim();
+            if (!profileEmail) {
+                return res.status(400).json({ message: "Email is required." });
+            }
+            if (!isValidEmailFormat(profileEmail)) {
+                return res.status(400).json({ message: "Enter a valid email address." });
+            }
+            if (profileEmail.length > 120) {
+                return res.status(400).json({ message: "Email cannot exceed 120 characters." });
+            }
+            update.profileEmail = profileEmail;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "phoneNumber")) {
+            const phoneDigits = String(body.phoneNumber || "").replace(/\D/g, "");
+            if (phoneDigits && phoneDigits.length !== 10) {
+                return res.status(400).json({ message: "Phone number must be exactly 10 digits." });
+            }
+            update.profilePhoneNumber = phoneDigits.slice(0, 10);
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "dietPreference")) {
+            const diet = String(body.dietPreference || "").trim();
+            if (diet.length > 40) {
+                return res.status(400).json({ message: "Diet preference cannot exceed 40 characters." });
+            }
+            update.profileDietPreference = diet || "No Preference";
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "notificationPreference")) {
+            const pref = String(body.notificationPreference || "").trim();
+            if (pref.length > 40) {
+                return res.status(400).json({ message: "Notification preference cannot exceed 40 characters." });
+            }
+            update.profileNotificationPreference = pref || "Email";
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "profileImage")) {
+            const profileImage = String(body.profileImage || "").trim();
+            if (profileImage.length > 2000000) {
+                return res.status(400).json({ message: "Profile image is too large." });
+            }
+            update.profileImage = profileImage;
+        }
+
+        if (Object.keys(update).length === 0) {
+            return res.status(400).json({ message: "Nothing to update." });
+        }
+
+        const updated = await Studentmodel.findOneAndUpdate(
+            { email: accountEmail },
+            { $set: update },
+            { new: true }
+        ).lean();
+        if (!updated) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        return res.json({ ok: true, profile: profileFromStudent(updated, accountEmail) });
+    } catch (err) {
+        return res.status(500).json({ message: err.message || "Could not update profile" });
+    }
+});
 
 /**
  * Staff dashboard login. Override with env: ADMIN_USERNAME, ADMIN_PASSWORD (required for production).

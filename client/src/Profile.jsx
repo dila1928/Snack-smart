@@ -73,13 +73,21 @@ function normalizeProfileNameFromStorage(raw) {
     return s;
 }
 
-function EditIconSmall() {
-    return (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-        </svg>
-    );
+function validateProfileField(field, value) {
+    if (field === "fullName") {
+        const v = String(value || "").trim();
+        if (v && v.length < 2) return "Full name must be at least 2 characters.";
+    }
+    if (field === "email") {
+        const v = String(value || "").trim();
+        if (!v) return "Email is required.";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Enter a valid email address.";
+    }
+    if (field === "phone") {
+        const v = sanitizePhone(value);
+        if (v && v.length !== 10) return "Phone number must be exactly 10 digits.";
+    }
+    return "";
 }
 
 function LockIcon() {
@@ -131,6 +139,17 @@ function Profile() {
         email: false,
         phone: false,
     });
+    const [fieldErrors, setFieldErrors] = useState({
+        fullName: "",
+        email: "",
+        phone: "",
+    });
+    const [profileDraftSnapshot, setProfileDraftSnapshot] = useState({
+        fullName: "",
+        email: "",
+        phone: "",
+    });
+    const [profileStatus, setProfileStatus] = useState("");
     const [myOrders, setMyOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
     const [ordersError, setOrdersError] = useState("");
@@ -152,34 +171,119 @@ function Profile() {
     };
 
     const unlockAndFocus = (field, ref) => {
+        setProfileDraftSnapshot({ fullName, email, phone: phoneNumber });
+        setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+        setProfileStatus("");
         setFieldUnlocked((prev) => ({ ...prev, [field]: true }));
         setTimeout(() => ref.current?.focus(), 0);
     };
 
-    const handleSaveProfile = (e) => {
+    const cancelFieldEdit = (field) => {
+        if (field === "fullName") setFullName(profileDraftSnapshot.fullName);
+        if (field === "email") setEmail(profileDraftSnapshot.email);
+        if (field === "phone") setPhoneNumber(sanitizePhone(profileDraftSnapshot.phone));
+        setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+        setFieldUnlocked((prev) => ({ ...prev, [field]: false }));
+    };
+
+    const saveFieldEdit = (field) => {
+        const valueByField = {
+            fullName,
+            email,
+            phone: phoneNumber,
+        };
+        const err = validateProfileField(field, valueByField[field]);
+        if (err) {
+            setFieldErrors((prev) => ({ ...prev, [field]: err }));
+            return;
+        }
+        if (field === "fullName") {
+            const normalized = normalizeProfileNameFromStorage(fullName);
+            setFullName(normalized);
+            setProfileDraftSnapshot((prev) => ({ ...prev, fullName: normalized }));
+        }
+        if (field === "phone") {
+            const phone = sanitizePhone(phoneNumber);
+            setPhoneNumber(phone);
+            setProfileDraftSnapshot((prev) => ({ ...prev, phone }));
+        }
+        if (field === "email") {
+            setEmail(String(email || "").trim());
+            setProfileDraftSnapshot((prev) => ({ ...prev, email: String(email || "").trim() }));
+        }
+        setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+        setFieldUnlocked((prev) => ({ ...prev, [field]: false }));
+    };
+
+    const handleSaveProfile = async (e) => {
         e.preventDefault();
         const nameToSave = normalizeProfileNameFromStorage(fullName);
+        const emailToSave = String(email || "").trim();
+        const phoneToSave = sanitizePhone(phoneNumber);
+
+        const nextErrors = {
+            fullName: validateProfileField("fullName", nameToSave),
+            email: validateProfileField("email", emailToSave),
+            phone: validateProfileField("phone", phoneToSave),
+        };
+        setFieldErrors(nextErrors);
+        if (nextErrors.fullName || nextErrors.email || nextErrors.phone) {
+            setProfileStatus("Please fix the highlighted fields before saving.");
+            return;
+        }
+
         setFullName(nameToSave);
+        setEmail(emailToSave);
+        setPhoneNumber(phoneToSave);
         if (nameToSave) {
             setProfileField(accountEmail, "profileFullName", nameToSave);
         } else {
             setProfileField(accountEmail, "profileFullName", "");
         }
-        setProfileField(accountEmail, "profileEmail", email);
-        setProfileField(accountEmail, "profilePhoneNumber", phoneNumber);
+        setProfileField(accountEmail, "profileEmail", emailToSave);
+        setProfileField(accountEmail, "profilePhoneNumber", phoneToSave);
         setFieldUnlocked({
             fullName: false,
             email: false,
             phone: false,
         });
-        alert("Profile saved");
+        setProfileDraftSnapshot({ fullName: nameToSave, email: emailToSave, phone: phoneToSave });
+        try {
+            if (isLoggedIn && accountEmail) {
+                await api.patch("/profile", {
+                    accountEmail,
+                    fullName: nameToSave,
+                    email: emailToSave,
+                    phoneNumber: phoneToSave,
+                    profileImage,
+                });
+            }
+            setProfileStatus("Profile saved.");
+        } catch (err) {
+            setProfileStatus(
+                err.response?.data?.message || "Saved locally, but could not sync to server right now."
+            );
+        }
     };
 
-    const handleSavePreferences = (e) => {
+    const handleSavePreferences = async (e) => {
         e.preventDefault();
         setProfileField(accountEmail, "profileDietPreference", dietPreference);
         setProfileField(accountEmail, "profileNotificationPreference", notificationPreference);
-        alert("Preferences updated");
+        try {
+            if (isLoggedIn && accountEmail) {
+                await api.patch("/profile", {
+                    accountEmail,
+                    dietPreference,
+                    notificationPreference,
+                });
+            }
+            setProfileStatus("Preferences updated.");
+        } catch (err) {
+            setProfileStatus(
+                err.response?.data?.message || "Preferences saved locally, but server sync failed."
+            );
+        }
     };
 
     const handleImageChange = (e) => {
@@ -191,6 +295,12 @@ function Profile() {
             if (typeof imageData === "string") {
                 setProfileImage(imageData);
                 setProfileField(accountEmail, "profileImage", imageData);
+                window.dispatchEvent(
+                    new CustomEvent("ss-profile-image-updated", { detail: { email: accountEmail, image: imageData } })
+                );
+                if (isLoggedIn && accountEmail) {
+                    api.patch("/profile", { accountEmail, profileImage: imageData }).catch(() => {});
+                }
             }
         };
         reader.readAsDataURL(file);
@@ -199,11 +309,59 @@ function Profile() {
     const handleRemovePhoto = () => {
         setProfileImage("");
         setProfileField(accountEmail, "profileImage", "");
+        window.dispatchEvent(
+            new CustomEvent("ss-profile-image-updated", { detail: { email: accountEmail, image: "" } })
+        );
+        if (isLoggedIn && accountEmail) {
+            api.patch("/profile", { accountEmail, profileImage: "" }).catch(() => {});
+        }
     };
 
     const bumpOrdersRefresh = useCallback(() => {
         setOrdersRefreshKey((k) => k + 1);
     }, []);
+
+    useEffect(() => {
+        if (!isLoggedIn || !accountEmail) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await api.get("/profile", { params: { accountEmail } });
+                const profile = data?.profile || {};
+                if (cancelled) return;
+                const name = normalizeProfileNameFromStorage(profile.fullName || "");
+                const em = String(profile.email || storedEmail).trim();
+                const phone = sanitizePhone(profile.phoneNumber || "");
+                const image = String(profile.profileImage || "");
+                const diet = String(profile.dietPreference || "No Preference");
+                const notify = String(profile.notificationPreference || "Email");
+                setFullName(name);
+                setEmail(em);
+                setPhoneNumber(phone);
+                setProfileImage(image);
+                setDietPreference(diet);
+                setNotificationPreference(notify);
+                setProfileDraftSnapshot({ fullName: name, email: em, phone });
+                setProfileField(accountEmail, "profileFullName", name);
+                setProfileField(accountEmail, "profileEmail", em);
+                setProfileField(accountEmail, "profilePhoneNumber", phone);
+                setProfileField(accountEmail, "profileImage", image);
+                setProfileField(accountEmail, "profileDietPreference", diet);
+                setProfileField(accountEmail, "profileNotificationPreference", notify);
+                window.dispatchEvent(
+                    new CustomEvent("ss-profile-image-updated", { detail: { email: accountEmail, image } })
+                );
+                setProfileStatus("");
+            } catch {
+                if (!cancelled) {
+                    setProfileStatus("Using local profile data. Server profile unavailable.");
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [isLoggedIn, accountEmail, storedEmail]);
 
     useEffect(() => {
         if (!isLoggedIn || !accountEmail) {
@@ -424,19 +582,41 @@ function Profile() {
                                                 }}
                                                 placeholder="Your full name"
                                             />
-                                            <button
-                                                type="button"
-                                                style={{
-                                                    ...styles.editFieldBtn,
-                                                    ...(fieldUnlocked.fullName ? styles.editFieldBtnActive : {}),
-                                                }}
-                                                title={fieldUnlocked.fullName ? "Editing" : "Click to edit"}
-                                                aria-label="Edit full name"
-                                                onClick={() => unlockAndFocus("fullName", fullNameRef)}
-                                            >
-                                                <EditIconSmall />
-                                            </button>
+                                            <div style={styles.fieldActionRow}>
+                                                {!fieldUnlocked.fullName ? (
+                                                    <button
+                                                        type="button"
+                                                        style={styles.fieldEditBtn}
+                                                        aria-label="Edit full name"
+                                                        onClick={() => unlockAndFocus("fullName", fullNameRef)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            style={styles.fieldSaveBtn}
+                                                            onClick={() => saveFieldEdit("fullName")}
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            style={styles.fieldCancelBtn}
+                                                            onClick={() => cancelFieldEdit("fullName")}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
+                                        {fieldErrors.fullName ? (
+                                            <p style={styles.fieldErrorText} role="alert">
+                                                {fieldErrors.fullName}
+                                            </p>
+                                        ) : null}
                                     </div>
 
                                     <div style={styles.fieldBlock}>
@@ -454,19 +634,41 @@ function Profile() {
                                                 }}
                                                 required
                                             />
-                                            <button
-                                                type="button"
-                                                style={{
-                                                    ...styles.editFieldBtn,
-                                                    ...(fieldUnlocked.email ? styles.editFieldBtnActive : {}),
-                                                }}
-                                                title={fieldUnlocked.email ? "Editing" : "Click to edit"}
-                                                aria-label="Edit email"
-                                                onClick={() => unlockAndFocus("email", emailRef)}
-                                            >
-                                                <EditIconSmall />
-                                            </button>
+                                            <div style={styles.fieldActionRow}>
+                                                {!fieldUnlocked.email ? (
+                                                    <button
+                                                        type="button"
+                                                        style={styles.fieldEditBtn}
+                                                        aria-label="Edit email"
+                                                        onClick={() => unlockAndFocus("email", emailRef)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            style={styles.fieldSaveBtn}
+                                                            onClick={() => saveFieldEdit("email")}
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            style={styles.fieldCancelBtn}
+                                                            onClick={() => cancelFieldEdit("email")}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
+                                        {fieldErrors.email ? (
+                                            <p style={styles.fieldErrorText} role="alert">
+                                                {fieldErrors.email}
+                                            </p>
+                                        ) : null}
                                     </div>
 
                                     <div style={styles.fieldBlock}>
@@ -487,19 +689,41 @@ function Profile() {
                                                 }}
                                                 placeholder="10 digit number"
                                             />
-                                            <button
-                                                type="button"
-                                                style={{
-                                                    ...styles.editFieldBtn,
-                                                    ...(fieldUnlocked.phone ? styles.editFieldBtnActive : {}),
-                                                }}
-                                                title={fieldUnlocked.phone ? "Editing" : "Click to edit"}
-                                                aria-label="Edit phone number"
-                                                onClick={() => unlockAndFocus("phone", phoneRef)}
-                                            >
-                                                <EditIconSmall />
-                                            </button>
+                                            <div style={styles.fieldActionRow}>
+                                                {!fieldUnlocked.phone ? (
+                                                    <button
+                                                        type="button"
+                                                        style={styles.fieldEditBtn}
+                                                        aria-label="Edit phone number"
+                                                        onClick={() => unlockAndFocus("phone", phoneRef)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            style={styles.fieldSaveBtn}
+                                                            onClick={() => saveFieldEdit("phone")}
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            style={styles.fieldCancelBtn}
+                                                            onClick={() => cancelFieldEdit("phone")}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
+                                        {fieldErrors.phone ? (
+                                            <p style={styles.fieldErrorText} role="alert">
+                                                {fieldErrors.phone}
+                                            </p>
+                                        ) : null}
                                     </div>
 
                                     <div style={styles.securityBar}>
@@ -548,6 +772,11 @@ function Profile() {
                                             Save profile changes
                                         </button>
                                     </div>
+                                    {profileStatus ? (
+                                        <p style={styles.profileStatusText} role="status">
+                                            {profileStatus}
+                                        </p>
+                                    ) : null}
                                 </form>
                             </div>
 
@@ -893,6 +1122,9 @@ const pageBg = "#07080c";
 const cardBg = "#12151c";
 const inputBg = "#1a1f2a";
 const borderSoft = "rgba(249, 200, 81, 0.12)";
+const localProfileBackgroundImage = "/profile-bg.jpg";
+const fallbackProfileBackgroundImage =
+    "https://images.pexels.com/photos/31846553/pexels-photo-31846553.jpeg?auto=compress&cs=tinysrgb&w=1600";
 
 const styles = {
     profileShell: {
@@ -904,7 +1136,12 @@ const styles = {
         alignItems: "flex-start",
         padding: "28px 20px 48px",
         boxSizing: "border-box",
-        background: `linear-gradient(180deg, ${pageBg} 0%, ${t.bg} 45%, #0a0c12 100%)`,
+        backgroundColor: pageBg,
+        backgroundImage: `linear-gradient(rgba(7, 8, 12, 0.84), rgba(7, 8, 12, 0.84)), url(${localProfileBackgroundImage}), url(${fallbackProfileBackgroundImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundAttachment: "fixed",
     },
     wrapper: {
         width: "100%",
@@ -1046,6 +1283,11 @@ const styles = {
         alignItems: "stretch",
         gap: "10px",
     },
+    fieldActionRow: {
+        display: "flex",
+        alignItems: "stretch",
+        gap: "8px",
+    },
     inputField: {
         flex: 1,
         minWidth: 0,
@@ -1073,21 +1315,50 @@ const styles = {
         opacity: 0.88,
         userSelect: "none",
     },
-    editFieldBtn: {
-        flexShrink: 0,
-        width: "46px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        border: `1px solid rgba(249, 200, 81, 0.35)`,
+    fieldEditBtn: {
+        minWidth: "68px",
+        border: `1px solid rgba(249, 200, 81, 0.45)`,
         borderRadius: "12px",
-        backgroundColor: "rgba(249, 200, 81, 0.06)",
+        backgroundColor: "rgba(249, 200, 81, 0.08)",
         color: t.gold,
         cursor: "pointer",
+        fontWeight: 700,
+        fontSize: "12px",
+        letterSpacing: "0.03em",
+        fontFamily: "inherit",
+        padding: "0 12px",
     },
-    editFieldBtnActive: {
-        backgroundColor: "rgba(249, 200, 81, 0.18)",
-        borderColor: t.gold,
+    fieldSaveBtn: {
+        minWidth: "68px",
+        border: `1px solid rgba(74, 222, 128, 0.45)`,
+        borderRadius: "12px",
+        backgroundColor: "rgba(74, 222, 128, 0.12)",
+        color: "#4ade80",
+        cursor: "pointer",
+        fontWeight: 700,
+        fontSize: "12px",
+        letterSpacing: "0.03em",
+        fontFamily: "inherit",
+        padding: "0 12px",
+    },
+    fieldCancelBtn: {
+        minWidth: "72px",
+        border: `1px solid ${t.border}`,
+        borderRadius: "12px",
+        backgroundColor: "rgba(0,0,0,0.35)",
+        color: t.textMuted,
+        cursor: "pointer",
+        fontWeight: 700,
+        fontSize: "12px",
+        letterSpacing: "0.03em",
+        fontFamily: "inherit",
+        padding: "0 12px",
+    },
+    fieldErrorText: {
+        margin: "8px 2px 0",
+        fontSize: "12px",
+        color: "#f87171",
+        fontWeight: 600,
     },
     securityBar: {
         marginTop: "8px",
@@ -1138,6 +1409,12 @@ const styles = {
         flexWrap: "wrap",
         gap: "12px",
         marginTop: "4px",
+    },
+    profileStatusText: {
+        margin: "12px 2px 0",
+        fontSize: "13px",
+        color: t.textMuted,
+        fontWeight: 600,
     },
     logoutPill: {
         display: "inline-flex",
