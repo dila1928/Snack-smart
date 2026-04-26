@@ -295,6 +295,9 @@ function Profile() {
             if (typeof imageData === "string") {
                 setProfileImage(imageData);
                 setProfileField(accountEmail, "profileImage", imageData);
+                window.dispatchEvent(
+                    new CustomEvent("ss-profile-image-updated", { detail: { email: accountEmail, image: imageData } })
+                );
                 if (isLoggedIn && accountEmail) {
                     api.patch("/profile", { accountEmail, profileImage: imageData }).catch(() => {});
                 }
@@ -306,6 +309,9 @@ function Profile() {
     const handleRemovePhoto = () => {
         setProfileImage("");
         setProfileField(accountEmail, "profileImage", "");
+        window.dispatchEvent(
+            new CustomEvent("ss-profile-image-updated", { detail: { email: accountEmail, image: "" } })
+        );
         if (isLoggedIn && accountEmail) {
             api.patch("/profile", { accountEmail, profileImage: "" }).catch(() => {});
         }
@@ -342,6 +348,9 @@ function Profile() {
                 setProfileField(accountEmail, "profileImage", image);
                 setProfileField(accountEmail, "profileDietPreference", diet);
                 setProfileField(accountEmail, "profileNotificationPreference", notify);
+                window.dispatchEvent(
+                    new CustomEvent("ss-profile-image-updated", { detail: { email: accountEmail, image } })
+                );
                 setProfileStatus("");
             } catch {
                 if (!cancelled) {

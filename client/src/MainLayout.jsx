@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { theme as t, headerChipLinkStyle } from "./theme";
-import { clearAdminSession, isAdminSession, isAuthSession } from "./authSession";
+import { clearAdminSession, getAuthEmail, isAdminSession, isAuthSession } from "./authSession";
 import { useCart } from "./CartContext";
+import { getProfileField } from "./profileStorage";
 
 const ls = {
     page: {
@@ -86,6 +87,13 @@ const ls = {
         textDecoration: "none",
         boxSizing: "border-box",
         position: "relative",
+        overflow: "hidden",
+    },
+    profileAvatarImage: {
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
     },
     cartBadge: {
         position: "absolute",
@@ -154,10 +162,40 @@ export function MainLayout({ children }) {
     const navigate = useNavigate();
     const { totalCount } = useCart();
     const [isLoggedIn, setIsLoggedIn] = useState(() => isAuthSession());
+    const [navProfileImage, setNavProfileImage] = useState("");
 
     useEffect(() => {
         setIsLoggedIn(isAuthSession());
     }, [location.pathname]);
+
+    useEffect(() => {
+        if (!isLoggedIn) {
+            setNavProfileImage("");
+            return;
+        }
+        const email = getAuthEmail();
+        const img = getProfileField(email, "profileImage", "");
+        setNavProfileImage(img || "");
+    }, [isLoggedIn, location.pathname]);
+
+    useEffect(() => {
+        const onProfileImageUpdated = (evt) => {
+            const email = getAuthEmail();
+            const next = evt?.detail?.image ?? getProfileField(email, "profileImage", "");
+            setNavProfileImage(typeof next === "string" ? next : "");
+        };
+        const onStorage = () => {
+            const email = getAuthEmail();
+            const img = getProfileField(email, "profileImage", "");
+            setNavProfileImage(img || "");
+        };
+        window.addEventListener("ss-profile-image-updated", onProfileImageUpdated);
+        window.addEventListener("storage", onStorage);
+        return () => {
+            window.removeEventListener("ss-profile-image-updated", onProfileImageUpdated);
+            window.removeEventListener("storage", onStorage);
+        };
+    }, []);
 
     const path = location.pathname;
     /** Staff header: admin + inventory routes, or any page while staff session is active. */
@@ -266,7 +304,11 @@ export function MainLayout({ children }) {
                                     aria-label="Profile"
                                     title="Profile"
                                 >
-                                    <UserIcon />
+                                    {navProfileImage ? (
+                                        <img src={navProfileImage} alt="" style={ls.profileAvatarImage} />
+                                    ) : (
+                                        <UserIcon />
+                                    )}
                                 </Link>
                             ) : null}
                             {!isLoggedIn && (
