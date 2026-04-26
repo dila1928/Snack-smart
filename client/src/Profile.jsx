@@ -893,6 +893,7 @@ const pageBg = "#07080c";
 const cardBg = "#12151c";
 const inputBg = "#1a1f2a";
 const borderSoft = "rgba(249, 200, 81, 0.12)";
+const profileBackgroundImage = "https://images.pexels.com/photos/31846553/pexels-photo-31846553.jpeg?auto=compress&cs=tinysrgb&w=1600";
 
 const styles = {
     profileShell: {
@@ -904,7 +905,12 @@ const styles = {
         alignItems: "flex-start",
         padding: "28px 20px 48px",
         boxSizing: "border-box",
-        background: `linear-gradient(180deg, ${pageBg} 0%, ${t.bg} 45%, #0a0c12 100%)`,
+        backgroundColor: pageBg,
+        backgroundImage: `linear-gradient(rgba(7, 8, 12, 0.84), rgba(7, 8, 12, 0.84)), url(${profileBackgroundImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundAttachment: "fixed",
     },
     wrapper: {
         width: "100%",
