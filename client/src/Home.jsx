@@ -113,6 +113,57 @@ function SearchIcon() {
     );
 }
 
+function SkeletonLine({ width = "100%", height = "12px", radius = "6px" }) {
+    return (
+        <div
+            style={{
+                width,
+                height,
+                borderRadius: radius,
+                background:
+                    "linear-gradient(90deg, rgba(148, 163, 184, 0.12) 0%, rgba(148, 163, 184, 0.28) 50%, rgba(148, 163, 184, 0.12) 100%)",
+                backgroundSize: "220% 100%",
+                animation: "ssShimmer 1.2s ease-in-out infinite",
+            }}
+            aria-hidden
+        />
+    );
+}
+
+function MenuCardSkeleton({ withThumb = false }) {
+    return (
+        <article style={styles.menuCard} aria-hidden>
+            <div style={styles.specialCardRow}>
+                <div style={styles.menuColRightFull}>
+                    <div style={styles.titleRow}>
+                        <SkeletonLine width="62%" height="16px" />
+                        <SkeletonLine width="22%" height="16px" />
+                    </div>
+                    <SkeletonLine width="94%" />
+                    <SkeletonLine width="80%" />
+                    <SkeletonLine width="50%" />
+                    <SkeletonLine width="100%" height="38px" radius="8px" />
+                </div>
+                {withThumb ? (
+                    <div style={styles.specialThumbWrap}>
+                        <div style={styles.skeletonThumb} />
+                    </div>
+                ) : null}
+            </div>
+        </article>
+    );
+}
+
+function SectionSkeletonGrid({ count = 3, withThumb = false }) {
+    return (
+        <div style={styles.menuGrid} aria-live="polite" aria-label="Loading menu items">
+            {Array.from({ length: count }).map((_, idx) => (
+                <MenuCardSkeleton key={`sk-${idx}`} withThumb={withThumb} />
+            ))}
+        </div>
+    );
+}
+
 export default function Home() {
     const { addItemQuantity, addOfferQuantity } = useCart();
     const [search, setSearch] = useState("");
@@ -299,6 +350,12 @@ export default function Home() {
     return (
         <MainLayout>
             <div style={styles.shell}>
+                <style>{`
+                    @keyframes ssShimmer {
+                        0% { background-position: 200% 0; }
+                        100% { background-position: -200% 0; }
+                    }
+                `}</style>
                 <div style={styles.bgOverlay} aria-hidden />
                 <div style={styles.shellContent}>
                     <div style={styles.inner}>
@@ -339,7 +396,7 @@ export default function Home() {
                             Today&apos;s special
                         </h3>
                         {specialsLoading ? (
-                            <p style={styles.empty}>Loading today&apos;s specials…</p>
+                            <SectionSkeletonGrid count={3} withThumb />
                         ) : specialsError ? (
                             <p style={styles.empty} role="alert">
                                 {specialsError}
@@ -465,7 +522,7 @@ export default function Home() {
                             Recommended for you
                         </h3>
                         {recLoading ? (
-                            <p style={styles.empty}>Loading recommendations…</p>
+                            <SectionSkeletonGrid count={3} withThumb />
                         ) : recError ? (
                             <p style={styles.empty} role="alert">
                                 {recError}
@@ -586,7 +643,7 @@ export default function Home() {
                             Offers
                         </h3>
                         {offersLoading ? (
-                            <p style={styles.empty}>Loading offers…</p>
+                            <SectionSkeletonGrid count={3} withThumb={false} />
                         ) : offersError ? (
                             <p style={styles.empty} role="alert">
                                 {offersError}
@@ -767,7 +824,7 @@ const styles = {
     shellContent: {
         position: "relative",
         zIndex: 1,
-        padding: "20px 16px 32px",
+        padding: "24px 18px 36px",
         boxSizing: "border-box",
     },
     inner: {
@@ -778,8 +835,8 @@ const styles = {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: "16px",
-        marginBottom: "22px",
+        gap: "18px",
+        marginBottom: "26px",
         width: "100%",
     },
     searchWrap: {
@@ -795,6 +852,7 @@ const styles = {
         backgroundColor: "rgba(26, 30, 40, 0.92)",
         color: t.textMuted,
         boxSizing: "border-box",
+        transition: "box-shadow 180ms ease, border-color 180ms ease, transform 180ms ease",
     },
     searchIcon: {
         display: "inline-flex",
@@ -827,7 +885,7 @@ const styles = {
         gap: "10px",
         overflowX: "auto",
         paddingBottom: "6px",
-        marginBottom: "14px",
+        marginBottom: "18px",
         scrollbarWidth: "thin",
     },
     tabBtn: {
@@ -841,6 +899,7 @@ const styles = {
         cursor: "pointer",
         whiteSpace: "nowrap",
         flexShrink: 0,
+        transition: "all 160ms ease",
     },
     tabBtnActive: {
         padding: "8px 14px",
@@ -853,9 +912,10 @@ const styles = {
         cursor: "pointer",
         whiteSpace: "nowrap",
         flexShrink: 0,
+        boxShadow: "0 2px 12px rgba(249, 200, 81, 0.18)",
     },
     section: {
-        marginBottom: "28px",
+        marginBottom: "32px",
     },
     recommendedSection: {
         marginTop: "42px",
@@ -869,14 +929,14 @@ const styles = {
     menuGrid: {
         display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
-        gap: "16px",
+        gap: "18px",
     },
     menuCard: {
         backgroundColor: t.surface,
         borderRadius: t.radius,
         border: `1px solid rgba(249, 200, 81, 0.35)`,
-        boxShadow: t.shadow,
-        padding: "14px",
+        boxShadow: "0 10px 28px rgba(0, 0, 0, 0.34)",
+        padding: "16px",
         minHeight: "268px",
         transition: "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
     },
@@ -902,6 +962,16 @@ const styles = {
     specialThumbWrap: {
         flexShrink: 0,
         paddingTop: "2px",
+    },
+    skeletonThumb: {
+        width: "96px",
+        aspectRatio: "4 / 3",
+        borderRadius: "8px",
+        background:
+            "linear-gradient(90deg, rgba(148, 163, 184, 0.12) 0%, rgba(148, 163, 184, 0.28) 50%, rgba(148, 163, 184, 0.12) 100%)",
+        backgroundSize: "220% 100%",
+        animation: "ssShimmer 1.2s ease-in-out infinite",
+        border: `1px solid rgba(249, 200, 81, 0.2)`,
     },
     menuColRightFull: {
         flex: 1,
@@ -1043,6 +1113,7 @@ const styles = {
         fontWeight: "600",
         fontSize: "14px",
         cursor: "pointer",
+        transition: "background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease",
     },
     empty: {
         color: t.textMuted,
@@ -1059,8 +1130,8 @@ const styles = {
         background: `linear-gradient(165deg, rgba(249, 200, 81, 0.14) 0%, ${t.surface} 42%, ${t.surface} 100%)`,
         borderRadius: t.radius,
         border: `1px solid rgba(249, 200, 81, 0.35)`,
-        boxShadow: t.shadow,
-        padding: "22px 20px 20px",
+        boxShadow: "0 10px 28px rgba(0, 0, 0, 0.34)",
+        padding: "24px 22px 22px",
     },
     aboutParagraph: {
         margin: "0 0 14px 0",
