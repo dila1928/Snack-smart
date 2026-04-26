@@ -4,8 +4,94 @@ const Category = require("../models/category");
 const FoodItem = require("../models/foodItem");
 const Offer = require("../models/offer");
 const Order = require("../models/order");
+const Studentmodel = require("../models/students");
 
 const router = express.Router();
+
+function resolveProfileAccountEmail(req) {
+    const fromHeader = String(req.headers["x-user-email"] || "").trim();
+    if (fromHeader) return fromHeader;
+    const fromQuery = String(req.query?.accountEmail || req.query?.email || "").trim();
+    if (fromQuery) return fromQuery;
+    const fromBody = String(req.body?.accountEmail || req.body?.email || "").trim();
+    return fromBody;
+}
+
+function profileFromStudent(user, accountEmail) {
+    return {
+        fullName: String(user?.profileFullName || user?.name || "").trim(),
+        email: String(user?.profileEmail || user?.email || accountEmail || "").trim(),
+        phoneNumber: String(user?.profilePhoneNumber || "").trim(),
+        dietPreference: String(user?.profileDietPreference || "No Preference").trim() || "No Preference",
+        notificationPreference:
+            String(user?.profileNotificationPreference || "Email").trim() || "Email",
+        profileImage: String(user?.profileImage || "").trim(),
+    };
+}
+
+router.get("/profile", async (req, res) => {
+    try {
+        const accountEmail = resolveProfileAccountEmail(req);
+        if (!accountEmail) {
+            return res.status(400).json({ message: "accountEmail is required" });
+        }
+        const user = await Studentmodel.findOne({ email: accountEmail }).lean();
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        return res.json({ ok: true, profile: profileFromStudent(user, accountEmail) });
+    } catch (err) {
+        return res.status(500).json({ message: err.message || "Could not fetch profile" });
+    }
+});
+
+router.patch("/profile", async (req, res) => {
+    try {
+        const accountEmail = resolveProfileAccountEmail(req);
+        if (!accountEmail) {
+            return res.status(400).json({ message: "accountEmail is required" });
+        }
+        const body = req.body || {};
+        const update = {};
+
+        if (Object.prototype.hasOwnProperty.call(body, "fullName")) {
+            update.profileFullName = String(body.fullName || "").trim();
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "email")) {
+            update.profileEmail = String(body.email || "").trim();
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "phoneNumber")) {
+            update.profilePhoneNumber = String(body.phoneNumber || "").replace(/\D/g, "").slice(0, 10);
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "dietPreference")) {
+            const diet = String(body.dietPreference || "").trim();
+            update.profileDietPreference = diet || "No Preference";
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "notificationPreference")) {
+            const pref = String(body.notificationPreference || "").trim();
+            update.profileNotificationPreference = pref || "Email";
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "profileImage")) {
+            update.profileImage = String(body.profileImage || "").trim();
+        }
+
+        if (Object.keys(update).length === 0) {
+            return res.status(400).json({ message: "Nothing to update." });
+        }
+
+        const updated = await Studentmodel.findOneAndUpdate(
+            { email: accountEmail },
+            { $set: update },
+            { new: true }
+        ).lean();
+        if (!updated) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        return res.json({ ok: true, profile: profileFromStudent(updated, accountEmail) });
+    } catch (err) {
+        return res.status(500).json({ message: err.message || "Could not update profile" });
+    }
+});
 
 /**
  * Staff dashboard login. Override with env: ADMIN_USERNAME, ADMIN_PASSWORD (required for production).
