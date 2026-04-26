@@ -29,6 +29,10 @@ function profileFromStudent(user, accountEmail) {
     };
 }
 
+function isValidEmailFormat(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
 router.get("/profile", async (req, res) => {
     try {
         const accountEmail = resolveProfileAccountEmail(req);
@@ -51,28 +55,62 @@ router.patch("/profile", async (req, res) => {
         if (!accountEmail) {
             return res.status(400).json({ message: "accountEmail is required" });
         }
+        if (!isValidEmailFormat(accountEmail)) {
+            return res.status(400).json({ message: "accountEmail must be a valid email address." });
+        }
         const body = req.body || {};
         const update = {};
 
         if (Object.prototype.hasOwnProperty.call(body, "fullName")) {
-            update.profileFullName = String(body.fullName || "").trim();
+            const fullName = String(body.fullName || "").trim();
+            if (fullName && fullName.length < 2) {
+                return res.status(400).json({ message: "Full name must be at least 2 characters." });
+            }
+            if (fullName.length > 80) {
+                return res.status(400).json({ message: "Full name cannot exceed 80 characters." });
+            }
+            update.profileFullName = fullName;
         }
         if (Object.prototype.hasOwnProperty.call(body, "email")) {
-            update.profileEmail = String(body.email || "").trim();
+            const profileEmail = String(body.email || "").trim();
+            if (!profileEmail) {
+                return res.status(400).json({ message: "Email is required." });
+            }
+            if (!isValidEmailFormat(profileEmail)) {
+                return res.status(400).json({ message: "Enter a valid email address." });
+            }
+            if (profileEmail.length > 120) {
+                return res.status(400).json({ message: "Email cannot exceed 120 characters." });
+            }
+            update.profileEmail = profileEmail;
         }
         if (Object.prototype.hasOwnProperty.call(body, "phoneNumber")) {
-            update.profilePhoneNumber = String(body.phoneNumber || "").replace(/\D/g, "").slice(0, 10);
+            const phoneDigits = String(body.phoneNumber || "").replace(/\D/g, "");
+            if (phoneDigits && phoneDigits.length !== 10) {
+                return res.status(400).json({ message: "Phone number must be exactly 10 digits." });
+            }
+            update.profilePhoneNumber = phoneDigits.slice(0, 10);
         }
         if (Object.prototype.hasOwnProperty.call(body, "dietPreference")) {
             const diet = String(body.dietPreference || "").trim();
+            if (diet.length > 40) {
+                return res.status(400).json({ message: "Diet preference cannot exceed 40 characters." });
+            }
             update.profileDietPreference = diet || "No Preference";
         }
         if (Object.prototype.hasOwnProperty.call(body, "notificationPreference")) {
             const pref = String(body.notificationPreference || "").trim();
+            if (pref.length > 40) {
+                return res.status(400).json({ message: "Notification preference cannot exceed 40 characters." });
+            }
             update.profileNotificationPreference = pref || "Email";
         }
         if (Object.prototype.hasOwnProperty.call(body, "profileImage")) {
-            update.profileImage = String(body.profileImage || "").trim();
+            const profileImage = String(body.profileImage || "").trim();
+            if (profileImage.length > 2000000) {
+                return res.status(400).json({ message: "Profile image is too large." });
+            }
+            update.profileImage = profileImage;
         }
 
         if (Object.keys(update).length === 0) {
