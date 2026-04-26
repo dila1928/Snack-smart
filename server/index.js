@@ -128,6 +128,108 @@ app.post("/reset-password", async (req, res) => {
     }
 });
 
+/**
+ * Resolve current user email from request without introducing auth/session changes.
+ * Priority: header x-user-email -> query email -> body email
+ */
+function resolveCurrentUserEmail(req) {
+    const fromHeader = String(req.headers["x-user-email"] || "").trim();
+    if (fromHeader) return fromHeader;
+    const fromQuery = String(req.query?.email || "").trim();
+    if (fromQuery) return fromQuery;
+    const fromBody = String(req.body?.email || "").trim();
+    if (fromBody) return fromBody;
+    return "";
+}
+
+/** Get currently logged student details (by provided current-user email). */
+app.get("/me", async (req, res) => {
+    try {
+        const email = resolveCurrentUserEmail(req);
+        if (!email) {
+            return res.status(400).json({ message: "Current user email is required (x-user-email or email)." });
+        }
+        const user = await Studentmodel.findOne({ email }).lean();
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.json({
+            id: String(user._id),
+            name: user.name || "",
+            email: user.email || "",
+        });
+    } catch (err) {
+        res.status(500).json({ message: err.message || "Could not fetch current user" });
+    }
+});
+
+/** Delete currently logged student account (by provided current-user email). */
+app.put("/me", async (req, res) => {
+    try {
+        const currentEmail = resolveCurrentUserEmail(req);
+        if (!currentEmail) {
+            return res.status(400).json({ message: "Current user email is required (x-user-email or email)." });
+        }
+
+        const nameProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "name");
+        const emailProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "email");
+        if (!nameProvided && !emailProvided) {
+            return res.status(400).json({ message: "Provide at least one field to update: name or email." });
+        }
+
+        const update = {};
+        if (nameProvided) {
+            const nextName = String(req.body?.name || "").trim();
+            if (!nextName) {
+                return res.status(400).json({ message: "Name cannot be empty" });
+            }
+            update.name = nextName;
+        }
+        if (emailProvided) {
+            const nextEmail = String(req.body?.email || "").trim();
+            if (!nextEmail) {
+                return res.status(400).json({ message: "Email cannot be empty" });
+            }
+            update.email = nextEmail;
+        }
+
+        const updated = await Studentmodel.findOneAndUpdate({ email: currentEmail }, update, {
+            new: true,
+        }).lean();
+        if (!updated) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.json({
+            ok: true,
+            user: {
+                id: String(updated._id),
+                name: updated.name || "",
+                email: updated.email || "",
+            },
+        });
+    } catch (err) {
+        res.status(500).json({ message: err.message || "Could not update current user" });
+    }
+});
+
+/** Delete currently logged student account (by provided current-user email). */
+app.delete("/me", async (req, res) => {
+    try {
+        const email = resolveCurrentUserEmail(req);
+        if (!email) {
+            return res.status(400).json({ message: "Current user email is required (x-user-email or email)." });
+        }
+        const deleted = await Studentmodel.findOneAndDelete({ email }).lean();
+        if (!deleted) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.json({ ok: true, deletedEmail: email });
+    } catch (err) {
+        res.status(500).json({ message: err.message || "Could not delete current user" });
+    }
+});
+
 app.listen(3001, () => {
     console.log("server is running");
 });
